@@ -39,10 +39,10 @@ tar "${sourceTarArgs[@]}" . | tar "${targetTarArgs[@]}"
 echo >&2 "Complete! WordPress has been successfully copied to $PWD"
 
 # Add the public key to the authorized keys file
-#mkdir -p /var/www/html/wp-content/.ssh && \
-#echo "$PUBLIC_KEY" > /var/www/html/wp-content/.ssh/authorized_keys && \
-#chmod 600 /root/.ssh/authorized_keys && \
-#chown root:root /root/.ssh/authorized_keys
+mkdir -p /var/www/html/wp-content/.ssh && \
+echo "$PUBLIC_KEY" > /var/www/html/wp-content/.ssh/authorized_keys && \
+chmod 600 /root/.ssh/authorized_keys && \
+chown root:root /root/.ssh/authorized_keys
 
 exec "$@"
 
