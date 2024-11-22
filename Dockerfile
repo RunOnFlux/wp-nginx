@@ -102,6 +102,7 @@ RUN set -x \
     && mkdir /docker-entrypoint.d
 
 
+
 # Set the working directory to /var/www/html
 WORKDIR /var/www/
 
