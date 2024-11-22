@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Load the .env file
-if [ -f "${DOTENV_PATH:-/var/www/html/.env}" ]; then
-    # Export environment variables from the .env file
-    while IFS='=' read -r key value; do
-        # Skip comments and empty lines
-        if [[ ! "$key" =~ ^# && -n "$key" ]]; then
-            export "$key=$value"
-        fi
-    done < "${DOTENV_PATH:-/var/www/html/.env}"
-else
-    echo ".env file not found"
-fi
-
 set -Eeuo pipefail
 
 sourceTarArgs=(
