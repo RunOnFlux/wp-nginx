@@ -1,11 +1,7 @@
 [
   {
     "name": "latest",
-    "tag": "6.6.2-php8.2-fpm"
-  },
-  {
-    "name": "beta-6.7-php8.3-fpm",
-    "tag": "beta-6.7-php8.3-fpm"
+    "tag": "6.7.1-php8.2-fpm"
   },
   {
     "name": "6.4.2",
