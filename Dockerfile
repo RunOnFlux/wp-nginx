@@ -203,6 +203,7 @@ RUN chmod +x /usr/local/php-fpm.sh
 EXPOSE 80
 # Expose the SFTP server port
 EXPOSE 2222/tcp
-# Start PHP-FPM and Nginx servers
+
 ENTRYPOINT ["/usr/local/docker-entrypoint.sh"]
-CMD []]
+# Start PHP-FPM and Nginx servers
+CMD /usr/local/php-fpm.sh & nginx -g "daemon off;" -c "/var/www/html/nginx.conf" & /usr/sbin/sshd -D & redis-server

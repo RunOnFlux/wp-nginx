@@ -101,13 +101,6 @@ else
     echo "PUBLIC_KEY is not defined."
 fi
 
-# Start background processes
-/usr/local/php-fpm.sh &
-nginx -g "daemon off;" -c "/var/www/html/nginx.conf" &
-/usr/sbin/sshd -D &
-redis-server &
-
-# Execute the command passed to the container
 exec "$@"
 
 ## echo "127.0.0.1 $(hostname) localhost localhost.localdomain" >> /etc/hosts;
