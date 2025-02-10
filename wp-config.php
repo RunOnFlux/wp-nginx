@@ -115,30 +115,30 @@ define( 'WP_DEBUG', !!getenv_docker('WORDPRESS_DEBUG', '') );
 
 // Check DB connection
 $is_slave = true;
-try {
-  $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-  if ( $mysqli->connect_errno ) {// this is a slave node
-    //Disable cron on slave nodes
-    define( 'DISABLE_WP_CRON' , true );
-    //Disable WP_AUTO_UPDATE_CORE on slave nodes
-    define( 'WP_AUTO_UPDATE_CORE', false );
-  } else {
-    define( 'WP_AUTO_UPDATE_CORE', 'minor' );
-    $is_slave = false;
-    $mysqli->close();
-  }
-}
-catch(Exception $e) {
-  //Disable cron on slave nodes
-  define( 'DISABLE_WP_CRON' , true );
-  //Disable WP_AUTO_UPDATE_CORE on slave nodes
-  define( 'WP_AUTO_UPDATE_CORE', false );
+$tries = 0;
+$maxtries = 12;
+if(empty($_SERVER['HTTP_HOST'])) $maxtries = 1;
+while ($tries < $maxtries) {
+    try {
+        $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+        // If connected, define constants and close the connection
+        define('WP_AUTO_UPDATE_CORE', 'minor');
+        $is_slave = false;
+        $mysqli->close();
+        break;
+    } catch (mysqli_sql_exception $e) {
+        // Connection failed, increment tries and wait before retrying
+        $tries += 1;
+        sleep(1);
+    }
 }
 if ( $is_slave ) {
+  define('DISABLE_WP_CRON', true);
+  define('WP_AUTO_UPDATE_CORE', false);
   header('HTTP/1.1 503 Service Unavailable');
   echo 'Standby node. Runs on <a href="https://runonflux.io">Flux</a>';
   exit(0);
-} 
+}
 // If we're behind a proxy server and using HTTPS, we need to alert WordPress of that fact
 // see also https://wordpress.org/support/article/administration-over-ssl/#using-a-reverse-proxy
 if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' ) {
