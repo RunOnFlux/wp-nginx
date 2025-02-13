@@ -65,6 +65,28 @@ else
     echo >&2 "Complete! WordPress has been successfully copied to $PWD"
 fi
 
+# Replace wp-config if new version is released
+SOURCE_CONFIG_FILE="/usr/src/wordpress/wp-config.php"
+TARGET_CONFIG_FILE="/var/www/html/wp-config.php"
+CONFIG_VERSION="VERSION:1.0.0"
+
+# Check if the target file exists
+if [[ -f "$TARGET_CONFIG_FILE" ]]; then
+    echo "File $TARGET_CONFIG_FILE exists."
+    # Check if the target file version
+    if grep -q "$CONFIG_VERSION" "$TARGET_CONFIG_FILE"; then
+        echo "File $TARGET_CONFIG_FILE has $CONFIG_VERSION."
+    else
+        echo "File $TARGET_CONFIG_FILE does not match $CONFIG_VERSION."
+        echo "Copying $SOURCE_CONFIG_FILE to $TARGET_CONFIG_FILE."
+        cp "$SOURCE_CONFIG_FILE" "$TARGET_CONFIG_FILE"
+    fi
+else
+    echo "File $TARGET_CONFIG_FILE does not exist."
+    echo "Copying $SOURCE_CONFIG_FILE to $TARGET_CONFIG_FILE."
+    cp "$SOURCE_CONFIG_FILE" "$TARGET_CONFIG_FILE"
+fi
+
 
 
 # Add a new user for SFTP access with key-based authentication

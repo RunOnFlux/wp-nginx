@@ -1,5 +1,5 @@
 <?php
-
+// VERSION:1.0.0
 define( 'WP_CACHE', true );
 
 /**
@@ -116,16 +116,31 @@ define( 'WP_DEBUG', !!getenv_docker('WORDPRESS_DEBUG', '') );
 // Check DB connection
 $is_slave = true;
 $tries = 0;
-$maxtries = 12;
-if(empty($_SERVER['HTTP_HOST'])) $maxtries = 1;
+$maxtries = 30;
+// if(empty($_SERVER['HTTP_HOST'])) $maxtries = 1;
+
 while ($tries < $maxtries) {
     try {
         $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-        // If connected, define constants and close the connection
-        define('WP_AUTO_UPDATE_CORE', 'minor');
-        $is_slave = false;
+
+        // If connected, check if the database exists
+        $query = "SELECT count(*) FROM " . DB_NAME . "." . $table_prefix . "options";
+        $result = $mysqli->query($query);
+
+        if ($result && $result->num_rows > 0) {
+            // Database exists, define constants and close the connection
+            define('WP_AUTO_UPDATE_CORE', 'minor');
+            $is_slave = false;
+            $mysqli->close();
+            break;
+        } else {
+            // Database does not exist, increment tries and wait before retrying
+            $tries += 1;
+            sleep(1);
+        }
+
+        $result->close();
         $mysqli->close();
-        break;
     } catch (mysqli_sql_exception $e) {
         // Connection failed, increment tries and wait before retrying
         $tries += 1;
