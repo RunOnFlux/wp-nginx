@@ -148,10 +148,14 @@ while ($tries < $maxtries) {
     }
 }
 if ( $is_slave ) {
-  define('DISABLE_WP_CRON', true);
-  define('WP_AUTO_UPDATE_CORE', false);
-  header('HTTP/1.1 503 Service Unavailable');
-  echo 'Standby node. Runs on <a href="https://runonflux.io">Flux</a>';
+  if(empty($_SERVER['HTTP_HOST'])) { // FDM requests
+    header('HTTP/1.1 500 Internal Server Error');
+  } else { // non fdm requests
+    define('DISABLE_WP_CRON', true);
+    define('WP_AUTO_UPDATE_CORE', false);
+    header('HTTP/1.1 503 Service Unavailable');
+    echo 'Standby node. Runs on <a href="https://runonflux.io">Flux</a>';
+  }
   exit(0);
 }
 // If we're behind a proxy server and using HTTPS, we need to alert WordPress of that fact
@@ -167,7 +171,6 @@ if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' 
     // request comming from FDM health check, check if node is slave
     if ( $is_slave ) {
       header('HTTP/1.1 500 Internal Server Error');
-      echo 'Database connection failed';
       exit(0);
     } else {
       echo 'OK';
