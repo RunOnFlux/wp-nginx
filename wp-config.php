@@ -163,9 +163,6 @@ if ( $is_slave ) {
 if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' ) {
   if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && strpos( $_SERVER['HTTP_X_FORWARDED_PROTO'], 'https' ) !== false ) {
     $_SERVER['HTTPS'] = 'on';
-  } else {
-    // define( 'WP_HOME', 'http://' . $_SERVER['HTTP_HOST'] . '/' );
-    // define( 'WP_SITEURL', 'http://' . $_SERVER['HTTP_HOST'] . '/' );
   }
 } else {
     // request comming from FDM health check, check if node is slave
