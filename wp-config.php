@@ -169,17 +169,8 @@ if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' 
   }
 } else {
     // request comming from FDM health check, check if node is slave
-    if ( $is_slave ) {
-      header('HTTP/1.1 500 Internal Server Error');
-      exit(0);
-    } else {
-      echo 'OK';
-      exit(0);
-    }
-}
-
-if ( $configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '') ) {
-	// eval($configExtra);
+    echo 'OK';
+    exit(0);
 }
 
 define( 'WP_MEMORY_LIMIT', '1024M' );
