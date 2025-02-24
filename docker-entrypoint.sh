@@ -68,18 +68,26 @@ fi
 # Replace wp-config if new version is released
 SOURCE_CONFIG_FILE="/usr/src/wordpress/wp-config.php"
 TARGET_CONFIG_FILE="/var/www/html/wp-config.php"
-CONFIG_VERSION="VERSION:1.0.0"
+OLD_HASH="8a4a780b92ec2112ed7a74b33ae4420b"
+NEW_HASH="82235206f8c97f86e9a21adfa346fdd9"
+STATUS_FILE="/var/www/html/status.txt"
 
 # Check if the target file exists
 if [[ -f "$TARGET_CONFIG_FILE" ]]; then
-    echo "File $TARGET_CONFIG_FILE exists."
-    # Check if the target file version
-    if grep -q "$CONFIG_VERSION" "$TARGET_CONFIG_FILE"; then
-        echo "File $TARGET_CONFIG_FILE has $CONFIG_VERSION."
-    else
-        echo "File $TARGET_CONFIG_FILE does not match $CONFIG_VERSION."
-        echo "Copying $SOURCE_CONFIG_FILE to $TARGET_CONFIG_FILE."
+    # Calculate the MD5 hash of wp-config.php
+    CURRENT_HASH=$(md5sum /var/www/html/wp-config.php | awk '{print $1}')
+    echo "File $TARGET_CONFIG_FILE exists, hash:$CURRENT_HASH"
+    # Compare the hashes
+    if [ "$CURRENT_HASH" = "$OLD_HASH" ]; then
+        echo "File $TARGET_CONFIG_FILE matches old hash, replacing the file..."
         cp "$SOURCE_CONFIG_FILE" "$TARGET_CONFIG_FILE"
+    else if [ "$CURRENT_HASH" = "$NEW_HASH" ]; then
+        echo "File $TARGET_CONFIG_FILE has new hash. Nothing to do."
+    else if [[ -f "$STATUS_FILE" ]]; then
+         echo "Status file exists. Nothing to do."
+    else
+        echo "File $TARGET_CONFIG_FILE does not match any hash, creating a flag file."
+        echo "v1" > $STATUS_FILE
     fi
 else
     echo "File $TARGET_CONFIG_FILE does not exist."
