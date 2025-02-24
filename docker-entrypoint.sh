@@ -81,13 +81,13 @@ if [[ -f "$TARGET_CONFIG_FILE" ]]; then
     if [ "$CURRENT_HASH" = "$OLD_HASH" ]; then
         echo "File $TARGET_CONFIG_FILE matches old hash, replacing the file..."
         cp "$SOURCE_CONFIG_FILE" "$TARGET_CONFIG_FILE"
-    else if [ "$CURRENT_HASH" = "$NEW_HASH" ]; then
+    elif [ "$CURRENT_HASH" = "$NEW_HASH" ]; then
         echo "File $TARGET_CONFIG_FILE has new hash. Nothing to do."
-    else if [[ -f "$STATUS_FILE" ]]; then
-         echo "Status file exists. Nothing to do."
+    elif [[ -f "$STATUS_FILE" ]]; then
+        echo "Status file exists. Nothing to do."
     else
         echo "File $TARGET_CONFIG_FILE does not match any hash, creating a flag file."
-        echo "v1" > $STATUS_FILE
+        echo "v1" > "$STATUS_FILE"
     fi
 else
     echo "File $TARGET_CONFIG_FILE does not exist."
