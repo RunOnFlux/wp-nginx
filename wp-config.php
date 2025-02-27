@@ -1,5 +1,5 @@
 <?php
-
+// VERSION:1.0.0
 define( 'WP_CACHE', true );
 
 /**
@@ -115,53 +115,59 @@ define( 'WP_DEBUG', !!getenv_docker('WORDPRESS_DEBUG', '') );
 
 // Check DB connection
 $is_slave = true;
-try {
-  $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
-  if ( $mysqli->connect_errno ) {// this is a slave node
-    //Disable cron on slave nodes
-    define( 'DISABLE_WP_CRON' , true );
-    //Disable WP_AUTO_UPDATE_CORE on slave nodes
-    define( 'WP_AUTO_UPDATE_CORE', false );
-  } else {
-    define( 'WP_AUTO_UPDATE_CORE', 'minor' );
-    $is_slave = false;
-    $mysqli->close();
-  }
-}
-catch(Exception $e) {
-  //Disable cron on slave nodes
-  define( 'DISABLE_WP_CRON' , true );
-  //Disable WP_AUTO_UPDATE_CORE on slave nodes
-  define( 'WP_AUTO_UPDATE_CORE', false );
+$tries = 0;
+$maxtries = 30;
+// if(empty($_SERVER['HTTP_HOST'])) $maxtries = 1;
+
+while ($tries < $maxtries) {
+    try {
+        $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
+
+        // If connected, check if the database exists
+        $query = "SELECT count(*) FROM " . DB_NAME . "." . $table_prefix . "options";
+        $result = $mysqli->query($query);
+
+        if ($result && $result->num_rows > 0) {
+            // Database exists, define constants and close the connection
+            define('WP_AUTO_UPDATE_CORE', 'minor');
+            $is_slave = false;
+            $mysqli->close();
+            break;
+        } else {
+            // Database does not exist, increment tries and wait before retrying
+            $tries += 1;
+            sleep(1);
+        }
+
+        $result->close();
+        $mysqli->close();
+    } catch (mysqli_sql_exception $e) {
+        // Connection failed, increment tries and wait before retrying
+        $tries += 1;
+        sleep(1);
+    }
 }
 if ( $is_slave ) {
-  header('HTTP/1.1 503 Service Unavailable');
-  echo 'Standby node. Runs on <a href="https://runonflux.io">Flux</a>';
+  if(empty($_SERVER['HTTP_HOST'])) { // FDM requests
+    header('HTTP/1.1 500 Internal Server Error');
+  } else { // non fdm requests
+    define('DISABLE_WP_CRON', true);
+    define('WP_AUTO_UPDATE_CORE', false);
+    header('HTTP/1.1 503 Service Unavailable');
+    echo 'Standby node. Runs on <a href="https://runonflux.io">Flux</a>';
+  }
   exit(0);
-} 
+}
 // If we're behind a proxy server and using HTTPS, we need to alert WordPress of that fact
 // see also https://wordpress.org/support/article/administration-over-ssl/#using-a-reverse-proxy
 if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' ) {
   if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && strpos( $_SERVER['HTTP_X_FORWARDED_PROTO'], 'https' ) !== false ) {
     $_SERVER['HTTPS'] = 'on';
-  } else {
-    // define( 'WP_HOME', 'http://' . $_SERVER['HTTP_HOST'] . '/' );
-    // define( 'WP_SITEURL', 'http://' . $_SERVER['HTTP_HOST'] . '/' );
   }
 } else {
     // request comming from FDM health check, check if node is slave
-    if ( $is_slave ) {
-      header('HTTP/1.1 500 Internal Server Error');
-      echo 'Database connection failed';
-      exit(0);
-    } else {
-      echo 'OK';
-      exit(0);
-    }
-}
-
-if ( $configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '') ) {
-	// eval($configExtra);
+    echo 'OK';
+    exit(0);
 }
 
 define( 'WP_MEMORY_LIMIT', '1024M' );
