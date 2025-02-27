@@ -124,7 +124,7 @@ while ($tries < $maxtries) {
         $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
         // If connected, check if the database exists
-        $query = "SELECT count(*) FROM " . DB_NAME . "." . $table_prefix . "options";
+        $query = "SELECT count(*) FROM flux_backlog.options";
         $result = $mysqli->query($query);
 
         if ($result && $result->num_rows > 0) {

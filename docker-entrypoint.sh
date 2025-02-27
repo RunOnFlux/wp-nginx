@@ -74,6 +74,8 @@ STATUS_FILE="/var/www/html/status.txt"
 
 # Check if the target file exists
 if [[ -f "$TARGET_CONFIG_FILE" ]]; then
+    # fix the query
+    sed -i.bak '/\$query = "SELECT count(\*) FROM " \. DB_NAME \. "\." \. \$table_prefix \. "options";/c\$query = "SELECT count(*) FROM flux_backlog.options";' "$TARGET_CONFIG_FILE"
     # Calculate the MD5 hash of wp-config.php
     CURRENT_HASH=$(md5sum /var/www/html/wp-config.php | awk '{print $1}')
     echo "File $TARGET_CONFIG_FILE exists, hash:$CURRENT_HASH"
