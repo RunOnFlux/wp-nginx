@@ -129,6 +129,7 @@ RUN { \
   # PHP-FPM configs
 RUN { \
     echo '[global]'; \
+    echo 'error_log = /var/log/php-fpm-error.log'; \
     echo 'emergency_restart_threshold=3'; \
     echo 'emergency_restart_interval=1m'; \
     echo 'process_control_timeout=5s'; \
