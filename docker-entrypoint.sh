@@ -2,6 +2,7 @@
 
 set -Eeuo pipefail
 
+# WordPress source and target arguments for tar
 sourceTarArgs=(
   --create
   --file -
@@ -58,6 +59,8 @@ for contentPath in \
     sourceTarArgs+=( --exclude "./$contentPath" )
   fi
 done
+
+# Copy WordPress files if not already present
 if [ -d "/var/www/html/wp-admin" ] && [ -f "/var/www/html/wp-config.php" ] && [ -f "/var/www/html/index.php" ]; then
     echo "Wordpress already there skipping..."
 else
@@ -132,6 +135,165 @@ if [ -v PUBLIC_KEY ]; then
 else
     echo "PUBLIC_KEY is not defined."
 fi
+
+# Read the PLAN environment variable. Default to "basic" if not set.
+CURRENT_PLAN="${PLAN:-basic}"
+
+echo "--- Configuring PHP for PLAN=${CURRENT_PLAN} ---"
+
+PHP_INI_DIR="/usr/local/etc/php/conf.d"
+PLAN_OPCACHE_CONF_FILE="${PHP_INI_DIR}/zz-plan-opcache.ini"
+PLAN_PHP_CONF_FILE="${PHP_INI_DIR}/zz-plan-php.ini"
+
+# Clear previous plan specific configs if any, to handle container restarts with different PLAN values.
+rm -f "${PLAN_OPCACHE_CONF_FILE}" "${PLAN_PHP_CONF_FILE}"
+
+# Apply plan-specific PHP configurations
+if [ "${CURRENT_PLAN}" = "basic" ]; then
+    {
+        echo '; -- Basic Plan Opcache Settings (Runtime) --';
+        echo 'opcache.jit=1254';
+        echo 'opcache.jit_buffer_size=8M';
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Basic Plan PHP Settings (Runtime) --';
+        echo 'max_input_vars=3000';
+        echo 'memory_limit=1024M';
+    } > "${PLAN_PHP_CONF_FILE}"
+elif [ "${CURRENT_PLAN}" = "Standard" ]; then
+    {
+        echo '; -- Standard Plan Opcache Settings (Runtime) --';
+        echo 'opcache.enable=1';
+        echo 'opcache.memory_consumption=256';
+        echo 'opcache.interned_strings_buffer=64';
+        echo 'opcache.max_accelerated_files=5000';
+        echo 'opcache.validate_timestamps=1';
+        echo 'opcache.revalidate_freq=60';
+        echo 'opcache.consistency_checks=0';
+        echo 'opcache.save_comments=0';
+        echo 'opcache.enable_file_override=1';
+        echo 'opcache.jit=1254';
+        echo 'opcache.jit_buffer_size=8M';
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Standard Plan PHP Settings (Runtime) --';
+        echo 'max_input_vars=5000';
+        echo 'memory_limit=2048M';
+    } > "${PLAN_PHP_CONF_FILE}"
+elif [ "${CURRENT_PLAN}" = "Pro" ]; then
+    {
+        echo '; -- Pro Plan Opcache Settings (Runtime) --';
+        echo 'opcache.enable=1';
+        echo 'opcache.memory_consumption=512';
+        echo 'opcache.interned_strings_buffer=128';
+        echo 'opcache.max_accelerated_files=15000';
+        echo 'opcache.validate_timestamps=1';
+        echo 'opcache.revalidate_freq=60';
+        echo 'opcache.consistency_checks=0';
+        echo 'opcache.save_comments=0';
+        echo 'opcache.enable_file_override=1';
+        echo 'opcache.jit=1254';
+        echo 'opcache.jit_buffer_size=12M';
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Pro Plan PHP Settings (Runtime) --';
+        echo 'max_input_vars=10000';
+        echo 'memory_limit=4096M';
+    } > "${PLAN_PHP_CONF_FILE}"
+elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
+    {
+        echo '; -- Ultra Plan Opcache Settings (Runtime) --';
+        echo 'opcache.enable=1';
+        echo 'opcache.memory_consumption=1024';
+        echo 'opcache.interned_strings_buffer=256';
+        echo 'opcache.max_accelerated_files=50000';
+        echo 'opcache.validate_timestamps=1';
+        echo 'opcache.revalidate_freq=60';
+        echo 'opcache.consistency_checks=0';
+        echo 'opcache.save_comments=0';
+        echo 'opcache.enable_file_override=1';
+        echo 'opcache.jit=1254';
+        echo 'opcache.jit_buffer_size=12M';
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Ultra Plan PHP Settings (Runtime) --';
+        echo 'max_input_vars=10000';
+        echo 'memory_limit=5120M';
+    } > "${PLAN_PHP_CONF_FILE}"
+elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
+    {
+        echo '; -- Enterprise Plan Opcache Settings (Runtime) --';
+        echo 'opcache.enable=1';
+        echo 'opcache.memory_consumption=2048';
+        echo 'opcache.interned_strings_buffer=256';
+        echo 'opcache.max_accelerated_files=50000';
+        echo 'opcache.validate_timestamps=1';
+        echo 'opcache.revalidate_freq=60';
+        echo 'opcache.consistency_checks=0';
+        echo 'opcache.save_comments=0';
+        echo 'opcache.enable_file_override=1';
+        echo 'opcache.jit=1254';
+        echo 'opcache.jit_buffer_size=16M';
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Enterprise Plan PHP Settings (Runtime) --';
+        echo 'max_input_vars=10000';
+        echo 'memory_limit=10240M';
+    } > "${PLAN_PHP_CONF_FILE}"
+else
+    echo "WARNING: Unknown PLAN='${CURRENT_PLAN}'. No specific PHP configurations applied. Using defaults from other .ini files." >&2
+    # Create empty files to prevent errors if PHP expects them,
+    # or to ensure default values from other files are used.
+    # Alternatively, you could copy a default minimal config here.
+    touch "${PLAN_OPCACHE_CONF_FILE}"
+    touch "${PLAN_PHP_CONF_FILE}"
+fi
+
+echo "--- Docker Entrypoint: PHP configuration complete for PLAN=${CURRENT_PLAN} ---"
+
+
+# --- Configure WP_MEMORY_LIMIT in wp-config.php based on PLAN ---
+# TARGET_CONFIG_FILE is already defined as /var/www/html/wp-config.php
+if [ -f "$TARGET_CONFIG_FILE" ]; then
+    echo "--- Configuring WP_MEMORY_LIMIT for PLAN=${CURRENT_PLAN} in ${TARGET_CONFIG_FILE} ---"
+    WP_MEMORY_VALUE=""
+
+    if [ "${CURRENT_PLAN}" = "basic" ]; then
+        WP_MEMORY_VALUE="1024M"
+    elif [ "${CURRENT_PLAN}" = "Standard" ]; then
+        WP_MEMORY_VALUE="2048M"
+    elif [ "${CURRENT_PLAN}" = "Pro" ]; then
+        WP_MEMORY_VALUE="4096M"
+    elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
+        WP_MEMORY_VALUE="5120M"
+    elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
+        WP_MEMORY_VALUE="10240M"
+    fi
+
+    if [ -n "$WP_MEMORY_VALUE" ]; then
+        # Check if WP_MEMORY_LIMIT is already defined
+        if grep -q "define( *'WP_MEMORY_LIMIT'" "$TARGET_CONFIG_FILE"; then
+            # It's defined, so replace it
+            sed -i.bak "s/define( *'WP_MEMORY_LIMIT' *, *'.*' *);/define( 'WP_MEMORY_LIMIT', '${WP_MEMORY_VALUE}' );/" "$TARGET_CONFIG_FILE"
+            echo "WP_MEMORY_LIMIT updated to ${WP_MEMORY_VALUE} in ${TARGET_CONFIG_FILE}"
+        else
+            # It's not defined, so add it before "/* That's all, stop editing! Happy publishing. */"
+            if grep -q "/\* That's all, stop editing! Happy publishing. \*/" "$TARGET_CONFIG_FILE"; then
+                 sed -i.bak "/\/\* That's all, stop editing! Happy publishing. \*\//i define( 'WP_MEMORY_LIMIT', '${WP_MEMORY_VALUE}' );\n" "$TARGET_CONFIG_FILE"
+                 echo "WP_MEMORY_LIMIT added as ${WP_MEMORY_VALUE} in ${TARGET_CONFIG_FILE}"
+            else
+                # Fallback: append if the "stop editing" line isn't found (less ideal)
+                echo "define( 'WP_MEMORY_LIMIT', '${WP_MEMORY_VALUE}' );" >> "$TARGET_CONFIG_FILE"
+                echo "WP_MEMORY_LIMIT appended as ${WP_MEMORY_VALUE} to ${TARGET_CONFIG_FILE} (standard marker not found)"
+            fi
+        fi
+    else
+        echo "No specific WP_MEMORY_LIMIT defined for PLAN=${CURRENT_PLAN}. Existing value (or WordPress default) in ${TARGET_CONFIG_FILE} will be used."
+    fi
+else
+    echo "WARNING: ${TARGET_CONFIG_FILE} not found. Cannot configure WP_MEMORY_LIMIT."
+fi
+# --- End WP_MEMORY_LIMIT configuration ---
 
 exec "$@"
 
