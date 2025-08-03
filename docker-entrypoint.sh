@@ -295,6 +295,24 @@ else
 fi
 # --- End WP_MEMORY_LIMIT configuration ---
 
+
+# --- Setup cron job for WordPress scheduled tasks ---
+CRON_INTERVAL="${WP_CRON_INTERVAL:-15}" # in minutes, default to 15 if not set
+CRON_FILE="/etc/cron.d/wp-cron"
+CRON_JOB="*/${CRON_INTERVAL} * * * * www-data curl -fsS http://localhost/wp-cron.php > /dev/null 2>&1"
+
+# Only add/update the cron job if needed
+if [ ! -f "$CRON_FILE" ] || ! grep -Fxq "$CRON_JOB" "$CRON_FILE"; then
+    echo "$CRON_JOB" > "$CRON_FILE"
+    chmod 0644 "$CRON_FILE"
+    crontab -u www-data "$CRON_FILE"
+    echo "WP-Cron job set to every ${CRON_INTERVAL} minutes."
+else
+    echo "WP-Cron job already set for every ${CRON_INTERVAL} minutes."
+fi
+
+service cron start
+
 exec "$@"
 
 ## echo "127.0.0.1 $(hostname) localhost localhost.localdomain" >> /etc/hosts;
