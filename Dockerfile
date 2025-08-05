@@ -49,7 +49,7 @@ RUN { \
    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install MySQL client
-RUN apt-get update && apt-get install -y default-mysql-client nano
+RUN apt-get update && apt-get install -y default-mysql-client nano cron
 
 # Install WP-CLI
 RUN curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
