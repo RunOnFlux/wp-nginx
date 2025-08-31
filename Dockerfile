@@ -63,6 +63,16 @@ RUN apt-get install -y redis-server
 RUN pecl install redis \
 && docker-php-ext-enable redis
 
+# Install PHP SOAP extension (requires libxml2 dev)
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libxml2-dev zlib1g-dev; \
+    docker-php-ext-install soap; \
+    docker-php-ext-enable soap; \
+    apt-get purge -y --auto-remove; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 #Configure SSH server
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && \
