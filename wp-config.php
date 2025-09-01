@@ -149,7 +149,7 @@ while ($tries < $maxtries) {
 }
 if ( $is_slave ) {
   if(empty($_SERVER['HTTP_HOST'])) { // FDM requests
-    header('HTTP/1.1 500 Internal Server Error');
+    header('HTTP/1.1 503 Service Unavailable');
   } else { // non fdm requests
     define('DISABLE_WP_CRON', true);
     define('WP_AUTO_UPDATE_CORE', false);
