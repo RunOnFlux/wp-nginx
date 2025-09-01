@@ -149,7 +149,7 @@ PLAN_PHP_CONF_FILE="${PHP_INI_DIR}/zz-plan-php.ini"
 rm -f "${PLAN_OPCACHE_CONF_FILE}" "${PLAN_PHP_CONF_FILE}"
 
 # Apply plan-specific PHP configurations
-if [ "${CURRENT_PLAN}" = "basic" ]; then
+if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan Opcache Settings (Runtime) --';
         echo 'opcache.jit=1254';
