@@ -136,8 +136,8 @@ else
     echo "PUBLIC_KEY is not defined."
 fi
 
-# Read the PLAN environment variable. Default to "basic" if not set.
-CURRENT_PLAN="${PLAN:-basic}"
+# Read the PLAN environment variable. Default to "Basic" if not set.
+CURRENT_PLAN="${PLAN:-Basic}"
 
 echo "--- Configuring PHP for PLAN=${CURRENT_PLAN} ---"
 
