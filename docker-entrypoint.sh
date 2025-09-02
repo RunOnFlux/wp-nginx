@@ -136,8 +136,8 @@ else
     echo "PUBLIC_KEY is not defined."
 fi
 
-# Read the PLAN environment variable. Default to "Standard" if not set.
-CURRENT_PLAN="${PLAN:-Standard}"
+# Read the PLAN environment variable. Default to "Ultra" if not set.
+CURRENT_PLAN="${PLAN:-Ultra}"
 
 echo "--- Configuring PHP for PLAN=${CURRENT_PLAN} ---"
 
@@ -258,7 +258,7 @@ if [ -f "$TARGET_CONFIG_FILE" ]; then
     echo "--- Configuring WP_MEMORY_LIMIT for PLAN=${CURRENT_PLAN} in ${TARGET_CONFIG_FILE} ---"
     WP_MEMORY_VALUE=""
 
-    if [ "${CURRENT_PLAN}" = "basic" ]; then
+    if [ "${CURRENT_PLAN}" = "Basic" ]; then
         WP_MEMORY_VALUE="1024M"
     elif [ "${CURRENT_PLAN}" = "Standard" ]; then
         WP_MEMORY_VALUE="2048M"
