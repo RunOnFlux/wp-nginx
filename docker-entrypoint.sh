@@ -158,7 +158,7 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=3000';
-        echo 'memory_limit=1024M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
@@ -178,7 +178,7 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=5000';
-        echo 'memory_limit=2048M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
@@ -198,7 +198,7 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=10000';
-        echo 'memory_limit=4096M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
