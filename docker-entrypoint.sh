@@ -136,8 +136,8 @@ else
     echo "PUBLIC_KEY is not defined."
 fi
 
-# Read the PLAN environment variable. Default to "Standard" if not set.
-CURRENT_PLAN="${PLAN:-Standard}"
+# Read the PLAN environment variable. Default to "doNothing" if not set.
+CURRENT_PLAN="${PLAN:-doNothing}"
 
 echo "--- Configuring PHP for PLAN=${CURRENT_PLAN} ---"
 
@@ -158,7 +158,7 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=3000';
-        echo 'memory_limit=1024M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
@@ -178,7 +178,7 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=5000';
-        echo 'memory_limit=2048M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
@@ -198,7 +198,7 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=10000';
-        echo 'memory_limit=4096M';
+        echo 'memory_limit=5120M';
     } > "${PLAN_PHP_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
@@ -258,7 +258,7 @@ if [ -f "$TARGET_CONFIG_FILE" ]; then
     echo "--- Configuring WP_MEMORY_LIMIT for PLAN=${CURRENT_PLAN} in ${TARGET_CONFIG_FILE} ---"
     WP_MEMORY_VALUE=""
 
-    if [ "${CURRENT_PLAN}" = "basic" ]; then
+    if [ "${CURRENT_PLAN}" = "Basic" ]; then
         WP_MEMORY_VALUE="1024M"
     elif [ "${CURRENT_PLAN}" = "Standard" ]; then
         WP_MEMORY_VALUE="2048M"
