@@ -144,9 +144,11 @@ echo "--- Configuring PHP for PLAN=${CURRENT_PLAN} ---"
 PHP_INI_DIR="/usr/local/etc/php/conf.d"
 PLAN_OPCACHE_CONF_FILE="${PHP_INI_DIR}/zz-plan-opcache.ini"
 PLAN_PHP_CONF_FILE="${PHP_INI_DIR}/zz-plan-php.ini"
+PHP_FPM_POOL_DIR="/usr/local/etc/php-fpm.d"
+PLAN_FPM_POOL_CONF_FILE="${PHP_FPM_POOL_DIR}/zz-plan-pool.conf"
 
 # Clear previous plan specific configs if any, to handle container restarts with different PLAN values.
-rm -f "${PLAN_OPCACHE_CONF_FILE}" "${PLAN_PHP_CONF_FILE}"
+rm -f "${PLAN_OPCACHE_CONF_FILE}" "${PLAN_PHP_CONF_FILE}" "${PLAN_FPM_POOL_CONF_FILE}"
 
 # Apply plan-specific PHP configurations
 if [ "${CURRENT_PLAN}" = "Basic" ]; then
@@ -159,7 +161,17 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
         echo '; -- Basic Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=3000';
         echo 'memory_limit=5120M';
-    } > "${PLAN_PHP_CONF_FILE}"
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 10';
+        echo 'pm.start_servers = 2';
+        echo 'pm.min_spare_servers = 1';
+        echo 'pm.max_spare_servers = 3';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan Opcache Settings (Runtime) --';
@@ -179,7 +191,17 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
         echo '; -- Standard Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=5000';
         echo 'memory_limit=5120M';
-    } > "${PLAN_PHP_CONF_FILE}"
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Standard Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 20';
+        echo 'pm.start_servers = 4';
+        echo 'pm.min_spare_servers = 2';
+        echo 'pm.max_spare_servers = 6';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan Opcache Settings (Runtime) --';
@@ -199,7 +221,17 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
         echo '; -- Pro Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=10000';
         echo 'memory_limit=5120M';
-    } > "${PLAN_PHP_CONF_FILE}"
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Pro Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 30';
+        echo 'pm.start_servers = 6';
+        echo 'pm.min_spare_servers = 3';
+        echo 'pm.max_spare_servers = 9';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
         echo '; -- Ultra Plan Opcache Settings (Runtime) --';
@@ -219,7 +251,17 @@ elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
         echo '; -- Ultra Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=10000';
         echo 'memory_limit=5120M';
-    } > "${PLAN_PHP_CONF_FILE}"
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Ultra Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 40';
+        echo 'pm.start_servers = 8';
+        echo 'pm.min_spare_servers = 4';
+        echo 'pm.max_spare_servers = 12';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
     {
         echo '; -- Enterprise Plan Opcache Settings (Runtime) --';
@@ -239,7 +281,17 @@ elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
         echo '; -- Enterprise Plan PHP Settings (Runtime) --';
         echo 'max_input_vars=10000';
         echo 'memory_limit=10240M';
-    } > "${PLAN_PHP_CONF_FILE}"
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Enterprise Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 80';
+        echo 'pm.start_servers = 16';
+        echo 'pm.min_spare_servers = 8';
+        echo 'pm.max_spare_servers = 24';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 else
     echo "WARNING: Unknown PLAN='${CURRENT_PLAN}'. No specific PHP configurations applied. Using defaults from other .ini files." >&2
     # Create empty files to prevent errors if PHP expects them,
