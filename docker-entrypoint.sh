@@ -299,6 +299,17 @@ else
     # Alternatively, you could copy a default minimal config here.
     touch "${PLAN_OPCACHE_CONF_FILE}"
     touch "${PLAN_PHP_CONF_FILE}"
+    # Apply Basic plan PHP-FPM pool settings as default
+    {
+        echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '[www]';
+        echo 'pm = dynamic';
+        echo 'pm.max_children = 10';
+        echo 'pm.start_servers = 2';
+        echo 'pm.min_spare_servers = 1';
+        echo 'pm.max_spare_servers = 3';
+        echo 'pm.max_requests = 500';
+    } > "${PLAN_FPM_POOL_CONF_FILE}"
 fi
 
 echo "--- Docker Entrypoint: PHP configuration complete for PLAN=${CURRENT_PLAN} ---"
