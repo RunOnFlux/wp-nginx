@@ -97,14 +97,14 @@ RUN mkdir -p /var/run/sshd && \
 
 # Set permissions for wp-content folder
 RUN \
-	chown -R www-data:www-data /var/www/html/ ;\
+	chown -R root:root /var/www/html/ ;\
 	chmod -R 777 /var/www/html/
 RUN chmod -R g+rwx /var/www/html/
 
 # Copy the Nginx configuration file into the container at /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 # Add wordpress config and database env
-COPY --chown=www-data:www-data wp-config.php /usr/src/wordpress/wp-config.php
+COPY --chown=root:root wp-config.php /usr/src/wordpress/wp-config.php
 # ENV WORDPRESS_DB_USER=root
 # ENV WORDPRESS_DB_NAME=test_db
 
