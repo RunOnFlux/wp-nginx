@@ -13,10 +13,26 @@ while true; do
 
     # Start the process
     #php-fpm -g $pidfile &
-    # reset wp folder permissions
-    chmod -R g+rwx /var/www/html/
-    chown -R www-data:www-data /var/www/html/
-    echo "Reseted Permissions."
+    # reset wp folder permissions only if needed
+
+    # Find and fix ownership only for files/directories not owned by www-data
+    ownership_changed=$(find /var/www/html/ \! -user www-data -o \! -group www-data -print0 2>/dev/null | \
+        xargs -0 -r chown www-data:www-data 2>/dev/null && echo "yes" || echo "no")
+
+    # Find and fix permissions only for directories without group rwx permissions
+    dir_perms_changed=$(find /var/www/html/ -type d \! -perm -g=rwx -print0 2>/dev/null | \
+        xargs -0 -r chmod g+rwx 2>/dev/null && echo "yes" || echo "no")
+
+    # Find and fix permissions only for files without group rw permissions
+    file_perms_changed=$(find /var/www/html/ -type f \! -perm -g=rw -print0 2>/dev/null | \
+        xargs -0 -r chmod g+rw 2>/dev/null && echo "yes" || echo "no")
+
+    # Only log if changes were made
+    if [ "$ownership_changed" = "yes" ] || [ "$dir_perms_changed" = "yes" ] || [ "$file_perms_changed" = "yes" ]; then
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - Permissions/ownership updated."
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') - No permission changes needed."
+    fi
     # Wait for 5 minutes
     sleep 300
     # Kill the process
