@@ -16,7 +16,7 @@ while true; do
     # reset wp folder permissions only if needed
 
     # Find and fix ownership only for files/directories not owned by www-data
-    ownership_changed=$(find /var/www/html/ \! -user www-data -o \! -group www-data -print0 2>/dev/null | \
+    ownership_changed=$(find /var/www/html/ \( \! -user www-data -o \! -group www-data \) -print0 2>/dev/null | \
         xargs -0 -r chown www-data:www-data 2>/dev/null && echo "yes" || echo "no")
 
     # Find and fix permissions only for directories without group rwx permissions
