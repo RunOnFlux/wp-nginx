@@ -7,7 +7,7 @@ sourceTarArgs=(
   --create
   --file -
   --directory /usr/src/wordpress
-  --owner "www-data" --group "www-data"
+  --owner "root" --group "root"
 )
 targetTarArgs=(
   --extract
@@ -125,12 +125,12 @@ if [ -v PUBLIC_KEY ]; then
 
     echo "Public key is: $PUBLIC_KEY"
 
-    usermod -aG www-data sftpuser 
-    usermod -aG www-data sshuser 
+    usermod -aG root sftpuser 
+    usermod -aG root sshuser 
     
 
     chmod -R g+rwx /var/www/html/
-    chown -R www-data:www-data /var/www/html/
+    chown -R root:root /var/www/html/
     
 else
     echo "PUBLIC_KEY is not defined."
@@ -165,6 +165,10 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 10';
         echo 'pm.start_servers = 2';
@@ -195,6 +199,10 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 20';
         echo 'pm.start_servers = 4';
@@ -225,6 +233,10 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 30';
         echo 'pm.start_servers = 6';
@@ -255,6 +267,10 @@ elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
         echo '; -- Ultra Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 40';
         echo 'pm.start_servers = 8';
@@ -285,6 +301,10 @@ elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
     {
         echo '; -- Enterprise Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 80';
         echo 'pm.start_servers = 16';
@@ -303,6 +323,10 @@ else
     {
         echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
+        echo 'user = root';
+        echo 'group = root';
+        echo 'listen.owner = root';
+        echo 'listen.group = root';
         echo 'pm = dynamic';
         echo 'pm.max_children = 10';
         echo 'pm.start_servers = 2';
@@ -362,13 +386,13 @@ fi
 # --- Setup cron job for WordPress scheduled tasks ---
 CRON_INTERVAL="${WP_CRON_INTERVAL:-15}" # in minutes, default to 15 if not set
 CRON_FILE="/etc/cron.d/wp-cron"
-CRON_JOB="*/${CRON_INTERVAL} * * * * www-data curl -fsS http://localhost/wp-cron.php > /dev/null 2>&1"
+CRON_JOB="*/${CRON_INTERVAL} * * * * root curl -fsS http://localhost/wp-cron.php > /dev/null 2>&1"
 
 # Only add/update the cron job if needed
 if [ ! -f "$CRON_FILE" ] || ! grep -Fxq "$CRON_JOB" "$CRON_FILE"; then
     echo "$CRON_JOB" > "$CRON_FILE"
     chmod 0644 "$CRON_FILE"
-    crontab -u www-data "$CRON_FILE"
+    crontab -u root "$CRON_FILE"
     echo "WP-Cron job set to every ${CRON_INTERVAL} minutes."
 else
     echo "WP-Cron job already set for every ${CRON_INTERVAL} minutes."

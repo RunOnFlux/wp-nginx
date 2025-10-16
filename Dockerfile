@@ -39,6 +39,11 @@ RUN { \
     echo 'emergency_restart_interval=1m'; \
     echo 'process_control_timeout=5s'; \
     echo '[www]'; \
+    echo 'user = root'; \
+    echo 'group = root'; \
+    echo 'listen.owner = root'; \
+    echo 'listen.group = root'; \
+    echo 'listen.mode = 0660'; \
     echo 'request_terminate_timeout=600s'; \
 	} > /usr/local/etc/php-fpm.d/zzz-extra.conf
 
@@ -92,19 +97,19 @@ RUN mkdir -p /home/sshuser/.ssh
 RUN mkdir -p /var/run/sshd && \
     echo "mkdir -p /var/run/sshd" >> /etc/rc.local
 
-# Create a group for SFTP users and add www-data to it
-#RUN usermod -a -G www-data root
+# Create a group for SFTP users and add root to it
+#RUN usermod -a -G root root
 
 # Set permissions for wp-content folder
 RUN \
-	chown -R www-data:www-data /var/www/html/ ;\
+	chown -R root:root /var/www/html/ ;\
 	chmod -R 777 /var/www/html/
 RUN chmod -R g+rwx /var/www/html/
 
 # Copy the Nginx configuration file into the container at /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 # Add wordpress config and database env
-COPY --chown=www-data:www-data wp-config.php /usr/src/wordpress/wp-config.php
+COPY --chown=root:root wp-config.php /usr/src/wordpress/wp-config.php
 # ENV WORDPRESS_DB_USER=root
 # ENV WORDPRESS_DB_NAME=test_db
 
