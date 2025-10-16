@@ -382,6 +382,41 @@ else
 fi
 # --- End WP_MEMORY_LIMIT configuration ---
 
+# --- Configure FS_METHOD in wp-config.php ---
+if [ -f "$TARGET_CONFIG_FILE" ]; then
+    echo "--- Configuring FS_METHOD in ${TARGET_CONFIG_FILE} ---"
+
+    # Check if FS_METHOD is already defined
+    if grep -q "define( *'FS_METHOD'" "$TARGET_CONFIG_FILE"; then
+        # It's defined, check if it's set to 'direct'
+        if grep -q "define( *'FS_METHOD' *, *'direct' *)" "$TARGET_CONFIG_FILE"; then
+            echo "FS_METHOD is already set to 'direct' in ${TARGET_CONFIG_FILE}"
+        else
+            # It's defined but not as 'direct', so update it
+            sed -i.bak "s/define( *'FS_METHOD' *, *'.*' *);/define( 'FS_METHOD', 'direct' );/" "$TARGET_CONFIG_FILE"
+            echo "FS_METHOD updated to 'direct' in ${TARGET_CONFIG_FILE}"
+        fi
+    else
+        # It's not defined, so add it before "/* That's all, stop editing! Happy publishing. */"
+        if grep -q "/\* That's all, stop editing! Happy publishing. \*/" "$TARGET_CONFIG_FILE"; then
+            sed -i.bak "/\/\* That's all, stop editing! Happy publishing. \*\//i define( 'FS_METHOD', 'direct' );\n" "$TARGET_CONFIG_FILE"
+            echo "FS_METHOD added as 'direct' in ${TARGET_CONFIG_FILE}"
+        else
+            # Fallback: append if the "stop editing" line isn't found (less ideal)
+            # Try to add it after WP_MEMORY_LIMIT if it exists
+            if grep -q "define( *'WP_MEMORY_LIMIT'" "$TARGET_CONFIG_FILE"; then
+                sed -i.bak "/define( *'WP_MEMORY_LIMIT' *, *'.*' *);/a define( 'FS_METHOD', 'direct' );" "$TARGET_CONFIG_FILE"
+                echo "FS_METHOD appended after WP_MEMORY_LIMIT in ${TARGET_CONFIG_FILE}"
+            else
+                echo "define( 'FS_METHOD', 'direct' );" >> "$TARGET_CONFIG_FILE"
+                echo "FS_METHOD appended to ${TARGET_CONFIG_FILE} (standard markers not found)"
+            fi
+        fi
+    fi
+else
+    echo "WARNING: ${TARGET_CONFIG_FILE} not found. Cannot configure FS_METHOD."
+fi
+# --- End FS_METHOD configuration ---
 
 # --- Setup cron job for WordPress scheduled tasks ---
 CRON_INTERVAL="${WP_CRON_INTERVAL:-15}" # in minutes, default to 15 if not set
