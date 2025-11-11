@@ -171,6 +171,7 @@ if ( !empty( $_SERVER['HTTP_HOST'] ) || $_SERVER['REMOTE_ADDR'] === '127.0.0.1' 
 }
 
 define( 'WP_MEMORY_LIMIT', '1024M' );
+define( 'FS_METHOD', 'direct' );
 
 # define( 'WP_DEBUG', true);
 # define( 'WP_DEBUG_LOG', true );
