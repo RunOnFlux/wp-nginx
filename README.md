@@ -12,17 +12,6 @@ A production-ready Docker image combining NGINX and WordPress with PHP-FPM, feat
 - Automated WordPress cron via system cron
 - Extensive environment variable configuration
 
-## Quick Start
-
-```bash
-docker run -d \
-  -e PLAN=Standard \
-  -e PUBLIC_KEY="your-ssh-public-key" \
-  -p 80:80 \
-  -p 22:22 \
-  -v wordpress-data:/var/www/html \
-  your-image-name
-```
 
 ## Performance Plans
 
@@ -85,15 +74,6 @@ Configure the PHP-FPM worker process pool:
 
 ## Usage Examples
 
-### Basic Setup with Standard Plan
-
-```bash
-docker run -d \
-  -e PLAN=Standard \
-  -p 80:80 \
-  -v wordpress-data:/var/www/html \
-  your-image-name
-```
 
 ### Custom Configuration Overrides
 
