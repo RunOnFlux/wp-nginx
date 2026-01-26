@@ -2,6 +2,85 @@
 
 set -Eeuo pipefail
 
+# --- Check if WordPress is already installed on another node ---
+# This is useful for multi-node setups with disk replication
+WP_ALREADY_INSTALLED=false
+
+check_wordpress_installed() {
+    local hostinfo_url="http://fluxnode.service:16101/hostinfo"
+    local max_retries=3
+    local retry_delay=5
+
+    echo "--- Checking if WordPress is already installed on the cluster ---"
+
+    for ((i=1; i<=max_retries; i++)); do
+        # Fetch hostinfo to get appName
+        local hostinfo_response
+        hostinfo_response=$(curl -sf --connect-timeout 10 "$hostinfo_url" 2>/dev/null) || {
+            echo "Attempt $i/$max_retries: Failed to fetch hostinfo from $hostinfo_url"
+            if [ $i -lt $max_retries ]; then
+                echo "Retrying in ${retry_delay}s..."
+                sleep $retry_delay
+                continue
+            fi
+            echo "Could not reach hostinfo service. Proceeding with normal installation."
+            return 1
+        }
+
+        # Extract appName from JSON response
+        local app_name
+        app_name=$(echo "$hostinfo_response" | grep -oP '"appName"\s*:\s*"\K[^"]+' 2>/dev/null) || {
+            echo "Failed to extract appName from hostinfo response."
+            return 1
+        }
+
+        if [ -z "$app_name" ]; then
+            echo "appName is empty. Proceeding with normal installation."
+            return 1
+        fi
+
+        # Construct the domain
+        local domain="${app_name}.app.runonflux.io"
+        echo "Checking WordPress installation on: https://${domain}"
+
+        # Check for WordPress via Link header (most reliable method)
+        local headers
+        headers=$(curl -sI --connect-timeout 10 --max-time 15 "https://${domain}/" 2>/dev/null) || {
+            echo "Could not reach ${domain}. WordPress may not be installed yet."
+            return 1
+        }
+
+        # Look for the wp-json Link header
+        if echo "$headers" | grep -qi "link.*wp-json"; then
+            echo "WordPress detected on ${domain} via Link header."
+            WP_ALREADY_INSTALLED=true
+            return 0
+        fi
+
+        # Fallback: check wp-login.php
+        local status_code
+        status_code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 15 "https://${domain}/wp-login.php" 2>/dev/null) || status_code="000"
+
+        if [ "$status_code" = "200" ] || [ "$status_code" = "302" ]; then
+            echo "WordPress detected on ${domain} via wp-login.php (status: ${status_code})."
+            WP_ALREADY_INSTALLED=true
+            return 0
+        fi
+
+        echo "WordPress not detected on ${domain}. Proceeding with normal installation."
+        return 1
+    done
+
+    return 1
+}
+
+# Run the check
+check_wordpress_installed
+
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "=== WordPress already installed on cluster. Skipping file copy operations. ==="
+fi
+
 # WordPress source and target arguments for tar
 sourceTarArgs=(
   --create
@@ -35,14 +114,18 @@ else
 fi
 
 #copy nginx config
-file_path="/etc/nginx/nginx.conf"
-dst_path="/var/www/html/nginx.conf"
-if [ -f "$dst_path" ]; then
-    echo "$dst_path already exist."
+if [ "$WP_ALREADY_INSTALLED" = false ]; then
+    file_path="/etc/nginx/nginx.conf"
+    dst_path="/var/www/html/nginx.conf"
+    if [ -f "$dst_path" ]; then
+        echo "$dst_path already exist."
+    else
+        echo "Creating $dst_path..."
+        cp "$file_path" "/var/www/html/"
+        echo "Nginx file copied successfully."
+    fi
 else
-    echo "Creating $dst_path..."
-    cp "$file_path" "/var/www/html/"
-    echo "Nginx file copied successfully."
+    echo "Skipping nginx.conf copy (WordPress already installed on cluster)."
 fi
 
 # loop over "pluggable" content in the source, and if it already exists in the destination, skip it
@@ -61,7 +144,9 @@ for contentPath in \
 done
 
 # Copy WordPress files if not already present
-if [ -d "/var/www/html/wp-admin" ] && [ -f "/var/www/html/wp-config.php" ] && [ -f "/var/www/html/index.php" ]; then
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "Skipping WordPress copy (WordPress already installed on cluster)."
+elif [ -d "/var/www/html/wp-admin" ] && [ -f "/var/www/html/wp-config.php" ] && [ -f "/var/www/html/index.php" ]; then
     echo "Wordpress already there skipping..."
 else
     tar "${sourceTarArgs[@]}" . | tar "${targetTarArgs[@]}"
@@ -75,8 +160,10 @@ OLD_HASH="8a4a780b92ec2112ed7a74b33ae4420b"
 NEW_HASH="82235206f8c97f86e9a21adfa346fdd9"
 STATUS_FILE="/var/www/html/status.txt"
 
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "Skipping wp-config.php copy/replacement (WordPress already installed on cluster)."
 # Check if the target file exists
-if [[ -f "$TARGET_CONFIG_FILE" ]]; then
+elif [[ -f "$TARGET_CONFIG_FILE" ]]; then
     # fix the query
     sed -i.bak '/\$query = "SELECT count(\*) FROM " \. DB_NAME \. "\." \. \$table_prefix \. "options";/c\$query = "SELECT count(*) FROM flux_backlog.options";' "$TARGET_CONFIG_FILE"
     # Calculate the MD5 hash of wp-config.php
