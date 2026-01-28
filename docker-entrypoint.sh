@@ -74,8 +74,8 @@ check_wordpress_installed() {
     return 1
 }
 
-# Run the check
-check_wordpress_installed
+# Run the check (|| true prevents set -e from exiting on non-zero return)
+check_wordpress_installed || true
 
 if [ "$WP_ALREADY_INSTALLED" = true ]; then
     echo "=== WordPress already installed on cluster. Skipping file copy operations. ==="
