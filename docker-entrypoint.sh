@@ -2,6 +2,85 @@
 
 set -Eeuo pipefail
 
+# --- Check if WordPress is already installed on another node ---
+# This is useful for multi-node setups with disk replication
+WP_ALREADY_INSTALLED=false
+
+check_wordpress_installed() {
+    local hostinfo_url="http://fluxnode.service:16101/hostinfo"
+    local max_retries=3
+    local retry_delay=5
+
+    echo "--- Checking if WordPress is already installed on the cluster ---"
+
+    for ((i=1; i<=max_retries; i++)); do
+        # Fetch hostinfo to get appName
+        local hostinfo_response
+        hostinfo_response=$(curl -sf --connect-timeout 10 "$hostinfo_url" 2>/dev/null) || {
+            echo "Attempt $i/$max_retries: Failed to fetch hostinfo from $hostinfo_url"
+            if [ $i -lt $max_retries ]; then
+                echo "Retrying in ${retry_delay}s..."
+                sleep $retry_delay
+                continue
+            fi
+            echo "Could not reach hostinfo service. Proceeding with normal installation."
+            return 1
+        }
+
+        # Extract appName from JSON response
+        local app_name
+        app_name=$(echo "$hostinfo_response" | grep -oP '"appName"\s*:\s*"\K[^"]+' 2>/dev/null) || {
+            echo "Failed to extract appName from hostinfo response."
+            return 1
+        }
+
+        if [ -z "$app_name" ]; then
+            echo "appName is empty. Proceeding with normal installation."
+            return 1
+        fi
+
+        # Construct the domain
+        local domain="${app_name}.app.runonflux.io"
+        echo "Checking WordPress installation on: https://${domain}"
+
+        # Check for WordPress via Link header (most reliable method)
+        local headers
+        headers=$(curl -sI --connect-timeout 10 --max-time 15 "https://${domain}/" 2>/dev/null) || {
+            echo "Could not reach ${domain}. WordPress may not be installed yet."
+            return 1
+        }
+
+        # Look for the wp-json Link header
+        if echo "$headers" | grep -qi "link.*wp-json"; then
+            echo "WordPress detected on ${domain} via Link header."
+            WP_ALREADY_INSTALLED=true
+            return 0
+        fi
+
+        # Fallback: check wp-login.php
+        local status_code
+        status_code=$(curl -so /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 15 "https://${domain}/wp-login.php" 2>/dev/null) || status_code="000"
+
+        if [ "$status_code" = "200" ] || [ "$status_code" = "302" ]; then
+            echo "WordPress detected on ${domain} via wp-login.php (status: ${status_code})."
+            WP_ALREADY_INSTALLED=true
+            return 0
+        fi
+
+        echo "WordPress not detected on ${domain}. Proceeding with normal installation."
+        return 1
+    done
+
+    return 1
+}
+
+# Run the check (|| true prevents set -e from exiting on non-zero return)
+check_wordpress_installed || true
+
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "=== WordPress already installed on cluster. Skipping file copy operations. ==="
+fi
+
 # WordPress source and target arguments for tar
 sourceTarArgs=(
   --create
@@ -35,14 +114,18 @@ else
 fi
 
 #copy nginx config
-file_path="/etc/nginx/nginx.conf"
-dst_path="/var/www/html/nginx.conf"
-if [ -f "$dst_path" ]; then
-    echo "$dst_path already exist."
+if [ "$WP_ALREADY_INSTALLED" = false ]; then
+    file_path="/etc/nginx/nginx.conf"
+    dst_path="/var/www/html/nginx.conf"
+    if [ -f "$dst_path" ]; then
+        echo "$dst_path already exist."
+    else
+        echo "Creating $dst_path..."
+        cp "$file_path" "/var/www/html/"
+        echo "Nginx file copied successfully."
+    fi
 else
-    echo "Creating $dst_path..."
-    cp "$file_path" "/var/www/html/"
-    echo "Nginx file copied successfully."
+    echo "Skipping nginx.conf copy (WordPress already installed on cluster)."
 fi
 
 # loop over "pluggable" content in the source, and if it already exists in the destination, skip it
@@ -61,7 +144,9 @@ for contentPath in \
 done
 
 # Copy WordPress files if not already present
-if [ -d "/var/www/html/wp-admin" ] && [ -f "/var/www/html/wp-config.php" ] && [ -f "/var/www/html/index.php" ]; then
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "Skipping WordPress copy (WordPress already installed on cluster)."
+elif [ -d "/var/www/html/wp-admin" ] && [ -f "/var/www/html/wp-config.php" ] && [ -f "/var/www/html/index.php" ]; then
     echo "Wordpress already there skipping..."
 else
     tar "${sourceTarArgs[@]}" . | tar "${targetTarArgs[@]}"
@@ -75,8 +160,10 @@ OLD_HASH="8a4a780b92ec2112ed7a74b33ae4420b"
 NEW_HASH="82235206f8c97f86e9a21adfa346fdd9"
 STATUS_FILE="/var/www/html/status.txt"
 
+if [ "$WP_ALREADY_INSTALLED" = true ]; then
+    echo "Skipping wp-config.php copy/replacement (WordPress already installed on cluster)."
 # Check if the target file exists
-if [[ -f "$TARGET_CONFIG_FILE" ]]; then
+elif [[ -f "$TARGET_CONFIG_FILE" ]]; then
     # fix the query
     sed -i.bak '/\$query = "SELECT count(\*) FROM " \. DB_NAME \. "\." \. \$table_prefix \. "options";/c\$query = "SELECT count(*) FROM flux_backlog.options";' "$TARGET_CONFIG_FILE"
     # Calculate the MD5 hash of wp-config.php
@@ -136,6 +223,13 @@ else
     echo "PUBLIC_KEY is not defined."
 fi
 
+# Helper function to get config value with ENV override support
+get_config() {
+    local env_name="$1"
+    local default_value="$2"
+    echo "${!env_name:-$default_value}"
+}
+
 # Read the PLAN environment variable. Default to "doNothing" if not set.
 CURRENT_PLAN="${PLAN:-doNothing}"
 
@@ -154,13 +248,13 @@ rm -f "${PLAN_OPCACHE_CONF_FILE}" "${PLAN_PHP_CONF_FILE}" "${PLAN_FPM_POOL_CONF_
 if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan Opcache Settings (Runtime) --';
-        echo 'opcache.jit=1254';
-        echo 'opcache.jit_buffer_size=8M';
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 8M)";
     } > "${PLAN_OPCACHE_CONF_FILE}" && \
     {
         echo '; -- Basic Plan PHP Settings (Runtime) --';
-        echo 'max_input_vars=3000';
-        echo 'memory_limit=5120M';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 3000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
@@ -170,31 +264,31 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 10';
-        echo 'pm.start_servers = 2';
-        echo 'pm.min_spare_servers = 1';
-        echo 'pm.max_spare_servers = 3';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 10)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 2)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 1)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 3)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan Opcache Settings (Runtime) --';
-        echo 'opcache.enable=1';
-        echo 'opcache.memory_consumption=256';
-        echo 'opcache.interned_strings_buffer=64';
-        echo 'opcache.max_accelerated_files=5000';
-        echo 'opcache.validate_timestamps=1';
-        echo 'opcache.revalidate_freq=60';
-        echo 'opcache.consistency_checks=0';
-        echo 'opcache.save_comments=0';
-        echo 'opcache.enable_file_override=1';
-        echo 'opcache.jit=1254';
-        echo 'opcache.jit_buffer_size=8M';
+        echo "opcache.enable=$(get_config PHP_OPCACHE_ENABLE 1)";
+        echo "opcache.memory_consumption=$(get_config PHP_OPCACHE_MEMORY_CONSUMPTION 256)";
+        echo "opcache.interned_strings_buffer=$(get_config PHP_OPCACHE_INTERNED_STRINGS_BUFFER 64)";
+        echo "opcache.max_accelerated_files=$(get_config PHP_OPCACHE_MAX_ACCELERATED_FILES 5000)";
+        echo "opcache.validate_timestamps=$(get_config PHP_OPCACHE_VALIDATE_TIMESTAMPS 1)";
+        echo "opcache.revalidate_freq=$(get_config PHP_OPCACHE_REVALIDATE_FREQ 60)";
+        echo "opcache.consistency_checks=$(get_config PHP_OPCACHE_CONSISTENCY_CHECKS 0)";
+        echo "opcache.save_comments=$(get_config PHP_OPCACHE_SAVE_COMMENTS 0)";
+        echo "opcache.enable_file_override=$(get_config PHP_OPCACHE_ENABLE_FILE_OVERRIDE 1)";
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 8M)";
     } > "${PLAN_OPCACHE_CONF_FILE}" && \
     {
         echo '; -- Standard Plan PHP Settings (Runtime) --';
-        echo 'max_input_vars=5000';
-        echo 'memory_limit=5120M';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 5000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Standard Plan PHP-FPM Pool Settings (Runtime) --';
@@ -204,31 +298,31 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 20';
-        echo 'pm.start_servers = 4';
-        echo 'pm.min_spare_servers = 2';
-        echo 'pm.max_spare_servers = 6';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 20)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 4)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 2)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 6)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan Opcache Settings (Runtime) --';
-        echo 'opcache.enable=1';
-        echo 'opcache.memory_consumption=512';
-        echo 'opcache.interned_strings_buffer=128';
-        echo 'opcache.max_accelerated_files=15000';
-        echo 'opcache.validate_timestamps=1';
-        echo 'opcache.revalidate_freq=60';
-        echo 'opcache.consistency_checks=0';
-        echo 'opcache.save_comments=0';
-        echo 'opcache.enable_file_override=1';
-        echo 'opcache.jit=1254';
-        echo 'opcache.jit_buffer_size=12M';
+        echo "opcache.enable=$(get_config PHP_OPCACHE_ENABLE 1)";
+        echo "opcache.memory_consumption=$(get_config PHP_OPCACHE_MEMORY_CONSUMPTION 512)";
+        echo "opcache.interned_strings_buffer=$(get_config PHP_OPCACHE_INTERNED_STRINGS_BUFFER 128)";
+        echo "opcache.max_accelerated_files=$(get_config PHP_OPCACHE_MAX_ACCELERATED_FILES 15000)";
+        echo "opcache.validate_timestamps=$(get_config PHP_OPCACHE_VALIDATE_TIMESTAMPS 1)";
+        echo "opcache.revalidate_freq=$(get_config PHP_OPCACHE_REVALIDATE_FREQ 60)";
+        echo "opcache.consistency_checks=$(get_config PHP_OPCACHE_CONSISTENCY_CHECKS 0)";
+        echo "opcache.save_comments=$(get_config PHP_OPCACHE_SAVE_COMMENTS 0)";
+        echo "opcache.enable_file_override=$(get_config PHP_OPCACHE_ENABLE_FILE_OVERRIDE 1)";
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 12M)";
     } > "${PLAN_OPCACHE_CONF_FILE}" && \
     {
         echo '; -- Pro Plan PHP Settings (Runtime) --';
-        echo 'max_input_vars=10000';
-        echo 'memory_limit=5120M';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Pro Plan PHP-FPM Pool Settings (Runtime) --';
@@ -238,31 +332,31 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 30';
-        echo 'pm.start_servers = 6';
-        echo 'pm.min_spare_servers = 3';
-        echo 'pm.max_spare_servers = 9';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 30)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 6)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 3)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 9)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
         echo '; -- Ultra Plan Opcache Settings (Runtime) --';
-        echo 'opcache.enable=1';
-        echo 'opcache.memory_consumption=1024';
-        echo 'opcache.interned_strings_buffer=256';
-        echo 'opcache.max_accelerated_files=50000';
-        echo 'opcache.validate_timestamps=1';
-        echo 'opcache.revalidate_freq=60';
-        echo 'opcache.consistency_checks=0';
-        echo 'opcache.save_comments=0';
-        echo 'opcache.enable_file_override=1';
-        echo 'opcache.jit=1254';
-        echo 'opcache.jit_buffer_size=12M';
+        echo "opcache.enable=$(get_config PHP_OPCACHE_ENABLE 1)";
+        echo "opcache.memory_consumption=$(get_config PHP_OPCACHE_MEMORY_CONSUMPTION 1024)";
+        echo "opcache.interned_strings_buffer=$(get_config PHP_OPCACHE_INTERNED_STRINGS_BUFFER 256)";
+        echo "opcache.max_accelerated_files=$(get_config PHP_OPCACHE_MAX_ACCELERATED_FILES 50000)";
+        echo "opcache.validate_timestamps=$(get_config PHP_OPCACHE_VALIDATE_TIMESTAMPS 1)";
+        echo "opcache.revalidate_freq=$(get_config PHP_OPCACHE_REVALIDATE_FREQ 60)";
+        echo "opcache.consistency_checks=$(get_config PHP_OPCACHE_CONSISTENCY_CHECKS 0)";
+        echo "opcache.save_comments=$(get_config PHP_OPCACHE_SAVE_COMMENTS 0)";
+        echo "opcache.enable_file_override=$(get_config PHP_OPCACHE_ENABLE_FILE_OVERRIDE 1)";
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 12M)";
     } > "${PLAN_OPCACHE_CONF_FILE}" && \
     {
         echo '; -- Ultra Plan PHP Settings (Runtime) --';
-        echo 'max_input_vars=10000';
-        echo 'memory_limit=5120M';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Ultra Plan PHP-FPM Pool Settings (Runtime) --';
@@ -272,31 +366,31 @@ elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 40';
-        echo 'pm.start_servers = 8';
-        echo 'pm.min_spare_servers = 4';
-        echo 'pm.max_spare_servers = 12';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 40)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 8)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 4)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 12)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
     {
         echo '; -- Enterprise Plan Opcache Settings (Runtime) --';
-        echo 'opcache.enable=1';
-        echo 'opcache.memory_consumption=2048';
-        echo 'opcache.interned_strings_buffer=256';
-        echo 'opcache.max_accelerated_files=50000';
-        echo 'opcache.validate_timestamps=1';
-        echo 'opcache.revalidate_freq=60';
-        echo 'opcache.consistency_checks=0';
-        echo 'opcache.save_comments=0';
-        echo 'opcache.enable_file_override=1';
-        echo 'opcache.jit=1254';
-        echo 'opcache.jit_buffer_size=16M';
+        echo "opcache.enable=$(get_config PHP_OPCACHE_ENABLE 1)";
+        echo "opcache.memory_consumption=$(get_config PHP_OPCACHE_MEMORY_CONSUMPTION 2048)";
+        echo "opcache.interned_strings_buffer=$(get_config PHP_OPCACHE_INTERNED_STRINGS_BUFFER 256)";
+        echo "opcache.max_accelerated_files=$(get_config PHP_OPCACHE_MAX_ACCELERATED_FILES 50000)";
+        echo "opcache.validate_timestamps=$(get_config PHP_OPCACHE_VALIDATE_TIMESTAMPS 1)";
+        echo "opcache.revalidate_freq=$(get_config PHP_OPCACHE_REVALIDATE_FREQ 60)";
+        echo "opcache.consistency_checks=$(get_config PHP_OPCACHE_CONSISTENCY_CHECKS 0)";
+        echo "opcache.save_comments=$(get_config PHP_OPCACHE_SAVE_COMMENTS 0)";
+        echo "opcache.enable_file_override=$(get_config PHP_OPCACHE_ENABLE_FILE_OVERRIDE 1)";
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 16M)";
     } > "${PLAN_OPCACHE_CONF_FILE}" && \
     {
         echo '; -- Enterprise Plan PHP Settings (Runtime) --';
-        echo 'max_input_vars=10000';
-        echo 'memory_limit=10240M';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 10240M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Enterprise Plan PHP-FPM Pool Settings (Runtime) --';
@@ -306,33 +400,38 @@ elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 80';
-        echo 'pm.start_servers = 16';
-        echo 'pm.min_spare_servers = 8';
-        echo 'pm.max_spare_servers = 24';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 80)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 16)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 8)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 24)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 else
-    echo "WARNING: Unknown PLAN='${CURRENT_PLAN}'. No specific PHP configurations applied. Using defaults from other .ini files." >&2
-    # Create empty files to prevent errors if PHP expects them,
-    # or to ensure default values from other files are used.
-    # Alternatively, you could copy a default minimal config here.
-    touch "${PLAN_OPCACHE_CONF_FILE}"
-    touch "${PLAN_PHP_CONF_FILE}"
-    # Apply Basic plan PHP-FPM pool settings as default
+    echo "WARNING: Unknown PLAN='${CURRENT_PLAN}'. Applying default configuration with ENV override support." >&2
+    # Apply default configuration with ENV overrides (using Basic plan defaults)
     {
-        echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
+        echo '; -- Default Opcache Settings (Runtime) --';
+        echo "opcache.jit=$(get_config PHP_OPCACHE_JIT 1254)";
+        echo "opcache.jit_buffer_size=$(get_config PHP_OPCACHE_JIT_BUFFER_SIZE 8M)";
+    } > "${PLAN_OPCACHE_CONF_FILE}" && \
+    {
+        echo '; -- Default PHP Settings (Runtime) --';
+        echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 3000)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
+    } > "${PLAN_PHP_CONF_FILE}" && \
+    {
+        echo '; -- Default PHP-FPM Pool Settings (Runtime) --';
         echo '[www]';
         echo 'user = root';
         echo 'group = root';
         echo 'listen.owner = root';
         echo 'listen.group = root';
         echo 'pm = dynamic';
-        echo 'pm.max_children = 10';
-        echo 'pm.start_servers = 2';
-        echo 'pm.min_spare_servers = 1';
-        echo 'pm.max_spare_servers = 3';
-        echo 'pm.max_requests = 500';
+        echo "pm.max_children = $(get_config PHP_FPM_MAX_CHILDREN 10)";
+        echo "pm.start_servers = $(get_config PHP_FPM_START_SERVERS 2)";
+        echo "pm.min_spare_servers = $(get_config PHP_FPM_MIN_SPARE_SERVERS 1)";
+        echo "pm.max_spare_servers = $(get_config PHP_FPM_MAX_SPARE_SERVERS 3)";
+        echo "pm.max_requests = $(get_config PHP_FPM_MAX_REQUESTS 500)";
     } > "${PLAN_FPM_POOL_CONF_FILE}"
 fi
 

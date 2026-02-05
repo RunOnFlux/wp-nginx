@@ -1,7 +1,7 @@
 [
   {
     "name": "latest",
-    "tag": "6.8.0-php8.4-fpm"
+    "tag": "6.9.1-php8.4-fpm"
   },
   {
     "name": "6.4.2",
