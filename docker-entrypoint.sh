@@ -254,7 +254,7 @@ if [ "${CURRENT_PLAN}" = "Basic" ]; then
     {
         echo '; -- Basic Plan PHP Settings (Runtime) --';
         echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 3000)";
-        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 800M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Basic Plan PHP-FPM Pool Settings (Runtime) --';
@@ -288,7 +288,7 @@ elif [ "${CURRENT_PLAN}" = "Standard" ]; then
     {
         echo '; -- Standard Plan PHP Settings (Runtime) --';
         echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 5000)";
-        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 1600M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Standard Plan PHP-FPM Pool Settings (Runtime) --';
@@ -322,7 +322,7 @@ elif [ "${CURRENT_PLAN}" = "Pro" ]; then
     {
         echo '; -- Pro Plan PHP Settings (Runtime) --';
         echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
-        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 2800M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Pro Plan PHP-FPM Pool Settings (Runtime) --';
@@ -356,7 +356,7 @@ elif [ "${CURRENT_PLAN}" = "Ultra" ]; then
     {
         echo '; -- Ultra Plan PHP Settings (Runtime) --';
         echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
-        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 5120M)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 4000M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Ultra Plan PHP-FPM Pool Settings (Runtime) --';
@@ -390,7 +390,7 @@ elif [ "${CURRENT_PLAN}" = "Enterprise" ]; then
     {
         echo '; -- Enterprise Plan PHP Settings (Runtime) --';
         echo "max_input_vars=$(get_config PHP_MAX_INPUT_VARS 10000)";
-        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 10240M)";
+        echo "memory_limit=$(get_config PHP_MEMORY_LIMIT 8000M)";
     } > "${PLAN_PHP_CONF_FILE}" && \
     {
         echo '; -- Enterprise Plan PHP-FPM Pool Settings (Runtime) --';
