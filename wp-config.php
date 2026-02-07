@@ -123,24 +123,17 @@ while ($tries < $maxtries) {
     try {
         $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
-        // If connected, check if the database is accessible
-        $query = "SELECT 1";
-        $result = $mysqli->query($query);
-
-        if ($result) {
-            // Database exists, define constants and close the connection
+        // Check connection only - no query needed
+        if (!$mysqli->connect_error) {
             define('WP_AUTO_UPDATE_CORE', 'minor');
             $is_slave = false;
             $mysqli->close();
             break;
-        } else {
-            // Database does not exist, increment tries and wait before retrying
-            $tries += 1;
-            sleep(1);
         }
 
-        $result->close();
         $mysqli->close();
+        $tries += 1;
+        sleep(1);
     } catch (mysqli_sql_exception $e) {
         // Connection failed, increment tries and wait before retrying
         $tries += 1;
