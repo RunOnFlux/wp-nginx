@@ -123,11 +123,11 @@ while ($tries < $maxtries) {
     try {
         $mysqli = new mysqli(DB_HOST, DB_USER, DB_PASSWORD, DB_NAME);
 
-        // If connected, check if the database exists
-        $query = "SELECT count(*) FROM flux_backlog.options";
+        // If connected, check if the database is accessible
+        $query = "SELECT 1";
         $result = $mysqli->query($query);
 
-        if ($result && $result->num_rows > 0) {
+        if ($result) {
             // Database exists, define constants and close the connection
             define('WP_AUTO_UPDATE_CORE', 'minor');
             $is_slave = false;
