@@ -220,13 +220,6 @@ Create a PHP file in your WordPress installation:
 docker exec your-container ps aux | grep php-fpm
 ```
 
-## Security Notes
-
-- The container runs PHP-FPM and NGINX as root (configurable in entrypoint)
-- WordPress filesystem method is set to 'direct' for file operations
-- SSH keys should be properly secured
-- Change default SSH port (22) in production if exposed publicly
-
 ## License
 
 This project configuration is provided as-is for use with WordPress and NGINX.
