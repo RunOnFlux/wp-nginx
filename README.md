@@ -12,23 +12,6 @@ A production-ready Docker image combining NGINX and WordPress with PHP-FPM, feat
 - Automated WordPress cron via system cron
 - Extensive environment variable configuration
 
-## Building and testing
-
-The image installs NGINX 1.30.7 from the signed nginx.org stable Debian
-repository, including the fix for
-[CVE-2026-123007](https://nginx.org/en/security_advisories.html). The build checks the
-installed version and fails if the pinned release is unavailable.
-
-```bash
-docker build --build-arg BASE_IMAGE=wordpress:7.1.3-php8.4-fpm -t wp-nginx:test .
-bash tests/smoke.sh wp-nginx:test
-```
-
-The smoke test starts an isolated container using the normal entrypoint and
-checks the NGINX version, NGINX and PHP-FPM configuration, static and PHP
-responses, and access restrictions. It removes its container and volumes on exit.
-It does not require a database or test a complete WordPress installation.
-
 
 ## Performance Plans
 
