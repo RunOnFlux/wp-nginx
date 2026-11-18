@@ -1,11 +1,23 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 # update to v.6.3.1
-# install nginx
-
-RUN apt-get update && apt-get install -y nginx \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# Use the stable upstream release fixing CVE-2026-123007.
+ARG NGINX_VERSION=1.30.7
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg; \
+    curl -fsSL https://nginx.org/keys/nginx_signing.key -o /tmp/nginx_signing.key; \
+    gpg --batch --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key; \
+    gpg --batch --show-keys --with-colons /usr/share/keyrings/nginx-archive-keyring.gpg \
+        | grep -q '^fpr:::::::::573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62:'; \
+    . /etc/os-release; \
+    echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] https://nginx.org/packages/debian ${VERSION_CODENAME} nginx" \
+        > /etc/apt/sources.list.d/nginx.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends "nginx=${NGINX_VERSION}-*"; \
+    test "$(nginx -v 2>&1)" = "nginx version: nginx/${NGINX_VERSION}"; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 
 # Set the working directory to /var/www/html
