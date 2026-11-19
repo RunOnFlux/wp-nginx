@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image="${1:?Usage: bash tests/smoke.sh IMAGE}"
+image="${1:?Usage: bash tests/smoke.sh IMAGE [WORDPRESS_VERSION]}"
+wordpress_version="${2:-}"
 container="$(docker run -d --network none --add-host fluxnode.service:127.0.0.1 "$image")"
 cleanup() {
     result=$?
@@ -22,15 +23,18 @@ for attempt in {1..60}; do
 done
 test "$ready" = true
 
-docker exec -i "$container" sh -s <<'CHECKS'
+docker exec -i "$container" sh -s -- "$wordpress_version" <<'CHECKS'
 set -eu
 test "$(nginx -v 2>&1)" = 'nginx version: nginx/1.30.7'
 nginx -t -c /var/www/html/nginx.conf
 php-fpm -t
 printf 'static-ok' > /var/www/html/smoke.txt
-printf '%s' '<?php header("Content-Type: text/plain"); echo "php-ok"; ?>' > /var/www/html/smoke.php
+printf '%s' '<?php header("Content-Type: text/plain"); echo PHP_VERSION_ID; ?>' > /var/www/html/smoke.php
 test "$(curl -fsS --max-time 10 http://127.0.0.1/smoke.txt)" = static-ok
-test "$(curl -fsS --max-time 10 http://127.0.0.1/smoke.php)" = php-ok
+test "$(curl -fsS --max-time 10 http://127.0.0.1/smoke.php)" -ge 80428
+if [ -n "$1" ]; then
+    test "$(php -r 'require "/var/www/html/wp-includes/version.php"; echo $wp_version;')" = "$1"
+fi
 for path in nginx.conf xmlrpc.php .htaccess; do
     test "$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1/$path")" = 403
 done
