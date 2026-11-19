@@ -1,5 +1,10 @@
+# syntax=docker/dockerfile:1
 ARG BASE_IMAGE
+ARG WORDPRESS_SOURCE_IMAGE=${BASE_IMAGE}
+FROM ${WORDPRESS_SOURCE_IMAGE} AS wordpress-source
 FROM ${BASE_IMAGE}
+RUN php -r 'if (PHP_VERSION_ID < 80428) { fwrite(STDERR, "PHP 8.4.28 or later is required for CVE-2026-126714\n"); exit(1); }'
+
 # update to v.6.3.1
 # Use the stable upstream release fixing CVE-2026-123007.
 ARG NGINX_VERSION=1.30.7
@@ -120,6 +125,18 @@ RUN chmod -R g+rwx /var/www/html/
 
 # Copy the Nginx configuration file into the container at /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/nginx.conf
+
+# The legacy variant takes only the WordPress files from its original image.
+ARG BASE_IMAGE
+ARG WORDPRESS_SOURCE_IMAGE
+RUN --mount=type=bind,from=wordpress-source,source=/usr/src/wordpress,target=/tmp/wordpress-source \
+    set -eu; \
+    if [ "$WORDPRESS_SOURCE_IMAGE" != "$BASE_IMAGE" ]; then \
+        rm -rf /usr/src/wordpress; \
+        mkdir -p /usr/src/wordpress; \
+        cp -a /tmp/wordpress-source/. /usr/src/wordpress/; \
+    fi
+
 # Add wordpress config and database env
 COPY --chown=root:root wp-config.php /usr/src/wordpress/wp-config.php
 # ENV WORDPRESS_DB_USER=root
